@@ -21,7 +21,7 @@ if (events == null || events.isEmpty()) {
 }
 
 // --- 1. 时间与设备过滤 (第一层筛子) ---
-def now = System.currentTimeMillis()
+def now = events.max { it.timestamp }.timestamp
 def timeLimit = windowSeconds * 1000
 
 def validEvents = events.findAll { event ->

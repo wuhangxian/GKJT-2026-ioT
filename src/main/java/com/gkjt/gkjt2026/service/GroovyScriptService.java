@@ -47,11 +47,29 @@ public class GroovyScriptService {
             binding.setVariable("events", events);
             GroovyShell shell = new GroovyShell(binding);
 
-            // 4. 运行脚本
+// 4. 运行脚本
             Object result = shell.evaluate(scriptContent);
 
-            // 5. 如果脚本返回了结果（比如报警信息），打印出来
-            if (result != null) {
+            // 5. 解析并打印结果
+            if (result instanceof java.util.Map) {
+                java.util.Map<String, Object> resultMap = (java.util.Map<String, Object>) result;
+
+                // 【5.1】 打印供人看的报表 (report)
+                if (resultMap.containsKey("report")) {
+                    System.out.println("🌟🌟🌟 [第二层聚合报告]: \n" + resultMap.get("report"));
+                }
+
+                // 【5.2】 提取并打印结构化事件 (actionData)
+                if (resultMap.containsKey("actionData")) {
+                    java.util.Map<String, Object> actionData = (java.util.Map<String, Object>) resultMap.get("actionData");
+                    System.out.println("🚀 [结构化事件拦截] 第二层已成功生成标准动作事件 (actionData)：");
+                    System.out.println(JSON.toJSONString(actionData, JSONWriter.Feature.PrettyFormat));
+                    System.out.println("--------------------------------------------------");
+
+                    // TODO: 未来这里调用 ruleEngineService.executeRules(actionData);
+                }
+
+            } else if (result != null) {
                 System.out.println("🌟🌟🌟 [脚本判定结果]: \n" + result.toString());
             }
 
