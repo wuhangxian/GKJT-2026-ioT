@@ -21,6 +21,10 @@ public class SensorDataService {
     @Autowired
     private DeviceMetaService deviceMetaService;
 
+    // 👇新增：注入物品查询服务
+    @Autowired
+    private CarrierMetaService carrierMetaService;
+
     // 如果你之前写了 TagMetaService (查物品的)，也要注入进来
     // @Autowired
     // private TagMetaService tagMetaService;
@@ -59,11 +63,40 @@ public class SensorDataService {
             System.out.println(">>> [加工厂] 警告：数据库无此设备 SN=" + msg.getSn());
         }
 
-        // 4. (可选) 如果是 RFID，顺便查一下标签物品是谁的
-        // if ("RFID_GATE".equals(event.getDeviceType())) {
-        //     tagMetaService.enrichTagInfo(event.getData());
-        // }
+        // 4. 如果是 RFID，去数据库查一下标签物品到底是什么、主人是谁
+        if ("RFID_GATE".equals(event.getDeviceType())) {
+            Object rawTags = event.getData().get("tags");
+            if (rawTags instanceof java.util.List) {
+                java.util.List<String> tagIds = (java.util.List<String>) rawTags;
+                java.util.List<java.util.Map<String, String>> tagsWithInfo = new java.util.ArrayList<>();
+
+                for (String tagId : tagIds) {
+                    java.util.Map<String, String> tagInfo = new java.util.HashMap<>();
+                    tagInfo.put("tagId", tagId);
+
+                    // 👇 调用真实数据库查询
+                    CarrierMetaService.CarrierInfo cInfo = carrierMetaService.getInfoByTagId(tagId);
+
+                    if (cInfo != null) {
+                        tagInfo.put("owner", cInfo.owner());
+                        tagInfo.put("name", cInfo.name());
+                        tagInfo.put("secretLevel", cInfo.secretLevel());
+                        tagInfo.put("dept", cInfo.deptName());
+                    } else {
+                        // 数据库里没这个标签的兜底逻辑
+                        tagInfo.put("owner", "未知");
+                        tagInfo.put("name", "未注册载体(" + tagId + ")");
+                        tagInfo.put("secretLevel", "未知");
+                        tagInfo.put("dept", "未知");
+                    }
+                    tagsWithInfo.add(tagInfo);
+                }
+                // 把丰富后的对象列表塞回 data 里
+                event.getData().put("tagsDetail", tagsWithInfo);
+            }
+        }
 
         return event;
+
     }
 }

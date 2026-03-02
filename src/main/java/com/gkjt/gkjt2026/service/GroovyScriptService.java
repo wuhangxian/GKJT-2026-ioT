@@ -11,7 +11,8 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
-
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONWriter;
 /**
  * 🧠 脚本执行引擎
  * 作用：读取 scripts 文件夹下的 Groovy 代码并运行
@@ -22,10 +23,6 @@ public class GroovyScriptService {
     // 从配置文件读取路径 app.script.path=./scripts
     @Value("${app.script.path}")
     private String scriptPath;
-
-    // 🔥 新增注入第三层规则引擎
-    @Autowired
-    private RuleEngineService ruleEngineService;
 
     public void runSpaceAnalysis(String spaceId, List<SensorEvent> events) {
         // 1. 拼凑脚本文件路径 (例如 ./scripts/SPACE_WH_1F.groovy)
@@ -62,5 +59,35 @@ public class GroovyScriptService {
             System.err.println("❌ 脚本运行出错: " + scriptFile.getName());
             e.printStackTrace();
         }
+
+    }
+    /**
+     * 🔥 新增：动态读取指定空间脚本中的 windowSeconds 配置
+     * @param spaceId 空间ID
+     * @return 脚本中配置的等待秒数（默认5秒）
+     */
+    public int getWindowSeconds(String spaceId) {
+        File scriptFile = new File(scriptPath, spaceId + ".groovy");
+        if (!scriptFile.exists()) {
+            return 5; // 如果脚本不存在，给个保底的默认值
+        }
+
+        try {
+            String scriptContent = Files.readString(scriptFile.toPath(), StandardCharsets.UTF_8);
+
+            // 使用正则表达式匹配 "def windowSeconds = 10" 这样的语句
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("def\\s+windowSeconds\\s*=\\s*(\\d+)");
+            java.util.regex.Matcher matcher = pattern.matcher(scriptContent);
+
+            if (matcher.find()) {
+                // 成功提取到了数字！
+                return Integer.parseInt(matcher.group(1));
+            }
+        } catch (Exception e) {
+            System.err.println("❌ 读取脚本时间窗口配置失败: " + e.getMessage());
+        }
+
+        // 如果脚本里没写这句配置，保底返回 5 秒
+        return 5;
     }
 }
