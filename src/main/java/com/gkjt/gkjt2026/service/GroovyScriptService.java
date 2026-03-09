@@ -19,6 +19,8 @@ import com.alibaba.fastjson2.JSONWriter;
  */
 @Service
 public class GroovyScriptService {
+    @Autowired
+    private RuleEngineService ruleEngineService;
 
     // 从配置文件读取路径 app.script.path=./scripts
     @Value("${app.script.path}")
@@ -66,7 +68,7 @@ public class GroovyScriptService {
                     System.out.println(JSON.toJSONString(actionData, JSONWriter.Feature.PrettyFormat));
                     System.out.println("--------------------------------------------------");
 
-                    // TODO: 未来这里调用 ruleEngineService.executeRules(actionData);
+                    ruleEngineService.executeRules(actionData);
                 }
 
             } else if (result != null) {
