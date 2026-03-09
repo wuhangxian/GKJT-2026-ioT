@@ -21,10 +21,20 @@ public class RuleEngineService {
     private String scriptPath;
 
     public void executeRules(Map<String, Object> actionData) {
-        File ruleFile = new File(scriptPath, "GLOBAL_RULES.groovy");
+// 1. 获取当前发生事件的地区 ID (比如 SPACE_WH_1F)
+        String spaceId = actionData.get("spaceId").toString();
+
+        // 2. 动态拼接专属规则脚本的名字，例如：RULE_SPACE_WH_1F.groovy
+        File ruleFile = new File(scriptPath, "RULE_" + spaceId + ".groovy");
+
+        // 3. 兜底逻辑：如果这个地区没有专门的脚本，可以退而求其次找全局脚本
         if (!ruleFile.exists()) {
-            System.out.println(">>> [第三层] 未找到全局规则脚本 GLOBAL_RULES.groovy");
-            return;
+            System.out.println(">>> [第三层] 地区 [" + spaceId + "] 没有专属规则，尝试加载全局规则...");
+            ruleFile = new File(scriptPath, "GLOBAL_RULES.groovy");
+            if (!ruleFile.exists()) {
+                System.out.println(">>> [第三层] 无任何可用规则脚本，放行。");
+                return;
+            }
         }
 
         try {

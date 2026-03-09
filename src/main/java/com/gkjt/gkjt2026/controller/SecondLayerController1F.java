@@ -90,7 +90,7 @@ public class SecondLayerController1F {
 
         this.report(rfidMsg); // 模拟入库
         GatewayMessage rfidMsg2 = new GatewayMessage();
-        rfidMsg.setMsgId("MOCK-R-202");
+        rfidMsg.setMsgId("MOCK-R-203");
         rfidMsg.setType("RFID_REPORT");
         rfidMsg.setSn("GATE_WH_01"); // 数据库中对应的 SN
         rfidMsg.setTs(now);          // 模拟现在经过闸机
@@ -98,7 +98,7 @@ public class SecondLayerController1F {
         rfidPayload.put("tags", java.util.Arrays.asList("涉密载体205", "涉密载体206"));
         // 💡 就在这里：直接给 ant 赋值，1代表出门，2代表进门
         rfidPayload.put("ant", 1);
-        rfidMsg.setPayload(rfidPayload);
+        rfidMsg.setPayload(rfidPayload2);
 
         return "<h1>自动化流程已触发</h1><p>请观察 IDEA 控制台，查看数据增强和脚本聚合的结果！</p>";
     }
