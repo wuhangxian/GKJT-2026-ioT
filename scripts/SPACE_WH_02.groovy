@@ -1,16 +1,16 @@
 // 文件名: scripts/SPACE_WH_02.groovy
 
 // =========================================================
-// 🔧 核心配置区 (在这里定义“时间”和“指定的传感器”)
+// 🔧 核心配置区 (二号仓库专属)
 // =========================================================
 
 // 1. 聚合时间窗口 (秒)
 def windowSeconds = 5
 
-// 2. 参与聚合的传感器清单 (定义该区域的核心关联设备)
+// 2. 参与聚合的传感器清单 (精准锁定二号仓库的设备 SN)
 def targetSensors = [
-        "门禁相机": "FACE_ACCESS",
-        "RFID闸机": "RFID_GATE"
+        "门禁相机": "FACE_WH_02", // 🔥精准绑定
+        "RFID闸机": "GATE_WH_02"  // 🔥精准绑定
 ]
 
 // =========================================================
@@ -20,16 +20,13 @@ if (events == null || events.isEmpty()) {
     return null
 }
 
-// --- 1. 时间与设备过滤 (第一层筛子) ---
-def now = events.max { it.timestamp }.timestamp
-def timeLimit = windowSeconds * 1000
-
+// --- 1. 设备过滤 (第一层筛子) ---
+// 🔥彻底删除了时间计算代码！完全信任底层 Java 传来的 5 秒数据包！
 def validEvents = events.findAll { event ->
-    boolean isTimeOk = (now - event.timestamp) <= timeLimit
     boolean isTargetDevice = targetSensors.any { key, value ->
         event.deviceType == value || event.deviceSn == value
     }
-    return isTimeOk && isTargetDevice
+    return isTargetDevice
 }
 
 // --- 2. 角色提取 (第二层筛子) ---
@@ -38,20 +35,20 @@ def faceEvent = validEvents.findAll { it.deviceType == "FACE_ACCESS" }.max { it.
 // 找到最新的RFID事件
 def rfidEvent = validEvents.findAll { it.deviceType == "RFID_GATE" }.max { it.timestamp }
 
-// 【核心修复】如果两者都没有，说明没有有效事件，直接退出。只要有其中之一，就继续往下走！
+// 如果两者都没有，说明没有有效事件，直接退出
 if (faceEvent == null && rfidEvent == null) {
     return null
 }
 
 // --- 3. 安全的数据提取与情景判定 (彻底解决空指针异常) ---
 
-// 3.1 提取人员姓名（安全判断）
+// 3.1 提取人员姓名
 def personName = "【异常未识别/无人】"
 if (faceEvent != null && faceEvent.data?.personId) {
     personName = faceEvent.data.personId
 }
 
-// 3.2 提取物品标签与进出方向（安全判断，对接第一层的查库数据）
+// 3.2 提取物品标签与进出方向
 def tagsDetail = []
 def antennaId = 0
 if (rfidEvent != null) {
@@ -59,7 +56,7 @@ if (rfidEvent != null) {
     antennaId = rfidEvent.data?.ant ?: 0
 }
 
-// 3.3 🔥 判定通行场景分类 (为未来的第三层规则引擎提供直接依据)
+// 3.3 判定通行场景分类
 def sceneType = ""
 if (faceEvent != null && rfidEvent != null) {
     sceneType = "👤📦 人物协同通行"
@@ -94,7 +91,7 @@ if (antennaId == 1) {
 }
 
 // 3.6 确定发生位置与时间 (安全合并)
-def location = (faceEvent?.location) ?: (rfidEvent?.location ?: "二号仓库大门")
+def location = (faceEvent?.location) ?: (rfidEvent?.location ?: "一楼二号仓库门")
 
 long maxTs = 0
 if (faceEvent != null && rfidEvent != null) {
@@ -126,14 +123,13 @@ def result = """
 =========================================
 """
 
-// 【核心修复】返回标准的 Map 结构，确保 Java 层能正确解析报表和动作数据
 return [
         "report": result,
         "actionData": [
-                "spaceId": "SPACE_WH_02",    // 这里改成了二号仓库的ID
+                "spaceId": "SPACE_WH_02",
                 "personName": personName,
                 "direction": directionCode,
                 "tags": tagsDetail,
-                "sceneType": sceneType       // 把场景类型一并传出
+                "sceneType": sceneType
         ]
 ]

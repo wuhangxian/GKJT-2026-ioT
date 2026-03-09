@@ -16,8 +16,8 @@ import java.util.Map;
  */
 //http://localhost:8080/api/second-layer1f/auto-test
 @RestController
-@RequestMapping("/api/second-layer1f")
-public class SecondLayerController1F {
+@RequestMapping("/api/second-layer01")
+public class SecondLayerController01 {
 
     @Autowired
     private SensorDataService sensorDataService; // 第一层：负责查数据库补全字段

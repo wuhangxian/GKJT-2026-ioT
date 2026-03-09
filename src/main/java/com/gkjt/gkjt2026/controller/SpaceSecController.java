@@ -80,7 +80,7 @@ public class SpaceSecController {
         // 🚨 技巧：为了让底层查库时把它识别为保密室的事件，我们借用一下二楼相机的SN，
         // 或者你需要去 sys_device 表加一行专门的二楼 RFID 设备。
         // 这里为了你能直接跑通，我们假装人脸机也附带了读RFID的功能：
-        rfidMsg.setSn("FACE_SEC_A");
+        rfidMsg.setSn("GATE_SEC_A");
 
         rfidMsg.setTs(now);
         Map<String, Object> rfidPayload = new HashMap<>();

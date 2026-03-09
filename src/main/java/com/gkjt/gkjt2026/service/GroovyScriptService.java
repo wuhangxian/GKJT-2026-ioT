@@ -27,7 +27,7 @@ public class GroovyScriptService {
     private String scriptPath;
 
     public void runSpaceAnalysis(String spaceId, List<SensorEvent> events) {
-        // 1. 拼凑脚本文件路径 (例如 ./scripts/SPACE_WH_1F.groovy)
+        // 1. 拼凑脚本文件路径 (例如 ./scripts/SPACE_WH_01.groovy)
         File scriptFile = new File(scriptPath, spaceId + ".groovy");
 
         if (!scriptFile.exists()) {

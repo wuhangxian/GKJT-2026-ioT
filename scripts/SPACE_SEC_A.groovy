@@ -1,16 +1,16 @@
-// 文件名: scripts/SPACE_WH_1F.groovy
+// 文件名: scripts/SPACE_SEC_A.groovy
 
 // =========================================================
-// 🔧 核心配置区 (在这里定义“时间”和“指定的传感器”)
+// 🔧 核心配置区 (二楼保密室专属)
 // =========================================================
 
 // 1. 聚合时间窗口 (秒)
 def windowSeconds = 5
 
-// 2. 参与聚合的传感器清单 (定义该区域的核心关联设备)
+// 2. 参与聚合的传感器清单 (精准绑定保密室的设备 SN，绝对防串台)
 def targetSensors = [
-        "保密室相机": "FACE_SEC_A",
-        "保密室RFID": "RFID_REPORT" // 模糊匹配类型
+        "保密室相机": "FACE_SEC_A", // 数据库里的保密室相机
+        "保密室RFID": "GATE_SEC_A"  // 刚才在数据库补上的保密室RFID感知门
 ]
 
 // =========================================================
@@ -20,37 +20,32 @@ if (events == null || events.isEmpty()) {
     return null
 }
 
-// --- 1. 时间与设备过滤 (第一层筛子) ---
-// 找到这批事件里时间最晚的那个，作为计算 5 秒窗口的“现在”
-def now = events.max { it.timestamp }.timestamp
-def timeLimit = windowSeconds * 1000
-
+// --- 1. 设备过滤 (第一层筛子) ---
+// 🔥 彻底删掉了时间过滤代码！完全信任 Java 层传来的 5 秒数据包！
 def validEvents = events.findAll { event ->
-    boolean isTimeOk = (now - event.timestamp) <= timeLimit
-    boolean isTargetDevice = targetSensors.any { key, value ->
-        event.deviceType == value || event.deviceSn == value
-    }
-    return isTimeOk && isTargetDevice
+    // 只留下 SN 码属于保密室的设备数据，其他的全扔掉
+    return targetSensors.containsValue(event.deviceSn)
 }
 
 // --- 2. 角色提取 (第二层筛子) ---
-def faceEvent = validEvents.findAll { it.deviceType == "FACE_ACCESS" }.max { it.timestamp }
-def rfidEvent = validEvents.findAll { it.deviceType == "RFID_GATE" }.max { it.timestamp }
+// 🔥 改进：直接用保密室的设备 SN 去提取事件，百分之百不会认错人！
+def faceEvent = validEvents.findAll { it.deviceSn == "FACE_SEC_A" }.max { it.timestamp }
+def rfidEvent = validEvents.findAll { it.deviceSn == "GATE_SEC_A" }.max { it.timestamp }
 
-// 如果两者都没有，说明没有有效事件，直接退出
+// 如果既没人刷脸，也没扫到物品，说明是无效触发，直接退出
 if (faceEvent == null && rfidEvent == null) {
     return null
 }
 
-// --- 3. 安全的数据提取与情景判定 (核心修复区) ---
+// --- 3. 安全的数据提取与情景判定 ---
 
-// 3.1 提取人员姓名（安全判断：如果没拍到脸，就是异常抛掷或尾随）
+// 3.1 提取人员姓名
 def personName = "【异常未识别/无人】"
 if (faceEvent != null && faceEvent.data?.personId) {
     personName = faceEvent.data.personId
 }
 
-// 3.2 提取物品标签与进出方向（安全判断：结合我们在第一层做好的数据库信息）
+// 3.2 提取物品标签与进出方向
 def tagsDetail = []
 def antennaId = 0
 if (rfidEvent != null) {
@@ -58,7 +53,7 @@ if (rfidEvent != null) {
     antennaId = rfidEvent.data?.ant ?: 0
 }
 
-// 3.3 判定通行场景分类 (非常关键，方便第三层写规则)
+// 3.3 判定通行场景分类
 def sceneType = ""
 if (faceEvent != null && rfidEvent != null) {
     sceneType = "👤📦 人物协同通行"
@@ -68,33 +63,32 @@ if (faceEvent != null && rfidEvent != null) {
     sceneType = "⚠️📦 严重异常：仅载体移动 (抛掷/尾随/漏抓拍)"
 }
 
-// 如果既没有有效人脸，也没有读到任何有效载体（例如人脸机误触，或非涉密人员闲逛），可以选择忽略
+// 如果既没有有效人脸，也没有读到任何有效载体，过滤掉无效触发
 if (personName == "【异常未识别/无人】" && tagsDetail.isEmpty()) {
     return null
 }
 
-// 3.4 格式化展示物品（有物品展示物品，没物品显示空手）
+// 3.4 格式化展示物品
 def tagsShow = "无载体 (空手)"
 if (!tagsDetail.isEmpty()) {
-    // 假设你在第一层查库时塞入了 secretLevel, name, owner 等字段
     tagsShow = tagsDetail.collect { "【${it.secretLevel ?: '未知'}】${it.name ?: '未知物品'} (属:${it.owner ?: '未知'})" }.join("\n           ")
 }
 
-// 3.5 判定进出方向
+// 3.5 判定进出方向 (保密室专属文案)
 def direction = "未知方向"
 def directionCode = "UNKNOWN"
 if (antennaId == 1) {
-    direction = "➡️ 【出门/带出】"
+    direction = "➡️ 【带出保密室】"
     directionCode = "OUT"
 } else if (antennaId == 2) {
-    direction = "⬅️ 【进门/带入】"
+    direction = "⬅️ 【带入保密室】"
     directionCode = "IN"
 } else if (faceEvent != null && rfidEvent == null) {
     direction = "🚶 【人员通行】"
 }
 
-// 3.6 确定发生位置与时间（安全合并时间）
-def location = (faceEvent?.location) ?: (rfidEvent?.location ?: "一号仓库大门")
+// 3.6 确定发生位置与时间 (安全合并)
+def location = (faceEvent?.location) ?: (rfidEvent?.location ?: "二楼保密室")
 
 long maxTs = 0
 if (faceEvent != null && rfidEvent != null) {
@@ -111,9 +105,10 @@ def timeShow = java.time.LocalDateTime.ofInstant(
 ).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
 
 // --- 4. 组装增强版业务报表 ---
+// 🔥 彻底净化：将这里的所有文字改成了“二楼保密室”
 def result = """
 =========================================
-🚨 【一号仓库 (SPACE_WH_1F) 事件捕获】 🚨
+🚨 【二楼保密室 (SPACE_SEC_A) 事件捕获】 🚨
 =========================================
 📍 发生位置：${location}
 ⏰ 判定时间：${timeShow}
@@ -127,12 +122,12 @@ def result = """
 """
 
 return [
-        "report": result,          // 留给原来打印控制台用
-        "actionData": [            // 传给第三层逻辑判断用
-                                   "spaceId": "SPACE_WH_01",
-                                   "personName": personName,
-                                   "direction": directionCode,
-                                   "tags": tagsDetail,
-                                   "sceneType": sceneType  // 🔥 将场景类型也传给第三层
+        "report": result,
+        "actionData": [
+                "spaceId": "SPACE_SEC_A",    // 🔥 极其重要：告诉第三层，我是保密室！
+                "personName": personName,
+                "direction": directionCode,
+                "tags": tagsDetail,
+                "sceneType": sceneType
         ]
 ]
