@@ -2,6 +2,7 @@ package com.gkjt.gkjt2026.service;
 
 import groovy.lang.Binding;
 import groovy.lang.GroovyShell;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -20,11 +21,16 @@ public class RuleEngineService {
     @Value("${app.script.path}")
     private String scriptPath;
 
+    // 🔥 修复 1：@Autowired 必须写在这里（类的成员变量），不能写在方法里面！
+    @Autowired
+    private GlobalTrackingService trackingService;
+
     public void executeRules(Map<String, Object> actionData) {
-// 1. 获取当前发生事件的地区 ID (比如 SPACE_WH_1F)
+
+        // 1. 获取当前发生事件的地区 ID (比如 SPACE_WH_01)
         String spaceId = actionData.get("spaceId").toString();
 
-        // 2. 动态拼接专属规则脚本的名字，例如：RULE_SPACE_WH_1F.groovy
+        // 2. 动态拼接专属规则脚本的名字，例如：RULE_SPACE_WH_01.groovy
         File ruleFile = new File(scriptPath, "RULE_" + spaceId + ".groovy");
 
         // 3. 兜底逻辑：如果这个地区没有专门的脚本，可以退而求其次找全局脚本
@@ -43,12 +49,13 @@ public class RuleEngineService {
             Binding binding = new Binding();
             binding.setVariable("action", actionData); // 注入底层传来的动作数据
 
-
+            // 注入三大神器：报警器、闸机控制器、跨区追踪器
             binding.setVariable("alert", new AlertApi());
             binding.setVariable("door", new DoorApi(actionData.get("spaceId").toString()));
+            binding.setVariable("tracker", new TrackerApi()); // 🔥 这里就不会报错了
 
             GroovyShell shell = new GroovyShell(binding);
-            System.out.println("⚖️ [第三层] 开始执行全局业务规则判定...");
+            System.out.println("⚖️ [第三层] 开始执行业务规则判定...");
             shell.evaluate(ruleContent);
 
         } catch (Exception e) {
@@ -58,10 +65,11 @@ public class RuleEngineService {
     }
 
 
+    // ================== 提供给小白脚本使用的 API 工具类 ==================
+
     public class AlertApi {
         public void send(String level, String message) {
             System.out.println("🚨🚨🚨 【系统告警】 级别: [" + level + "] | 详情: " + message);
-            // 未来这里可以写代码发短信、推送企业微信
         }
     }
 
@@ -71,11 +79,22 @@ public class RuleEngineService {
 
         public void block(String reason) {
             System.out.println("⛔⛔⛔ 【闸机控制】 已向 [" + space + "] 发送关门/锁死指令！原因: " + reason);
-            // 未来这里可以通过硬件接口真正把门锁死
         }
 
         public void open(String reason) {
             System.out.println("✅✅✅ 【闸机控制】 验证通过，允许放行 [" + space + "]！原因: " + reason);
+        }
+    }
+
+    // 🔥 修复 2：加上刚刚遗漏的追踪器 API 内部类！
+    public class TrackerApi {
+        // expect: 期待某个物品在几秒内到达某个地点
+        public void expect(String tagId, String targetSpace, int seconds, String msg) {
+            trackingService.expect(tagId, targetSpace, seconds, msg);
+        }
+        // arrive: 报告某个物品已经安全抵达
+        public void arrive(String tagId, String currentSpace) {
+            trackingService.arrive(tagId, currentSpace);
         }
     }
 }

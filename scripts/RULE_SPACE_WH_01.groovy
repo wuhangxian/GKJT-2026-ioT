@@ -1,25 +1,16 @@
-// 文件名: RULE_SPACE_WH_1F.groovy (一楼大门专属规则)
-def 通行人员 = action.personName
-def 携带的物品列表 = action.tags
+def 拿东西的人 = action.personName
+def 物品清单 = action.tags
+def 运行方向 = action.direction
+
 def 允许放行 = true
 
-for (物品 in 携带的物品列表) {
-    // 仓库规则：机密级别的图纸和文件，必须本人携带！
-    if (物品.secretLevel == "机密" && 物品.owner != 通行人员) {
-        alert.send("越权违规", "【${通行人员}】试图带走【${物品.owner}】的机密级物品：《${物品.name}》！一楼大门拦截！")
-        允许放行 = false
-    }
+for (物品 in 物品清单) {
+    if (运行方向 == "OUT" && 物品.secretLevel == "绝密") {
+        alert.send("特别提醒", "绝密载体【${物品.name}】正在离开一号大门！")
 
-    // 仓库规则：绝密物品根本就不该出现在一楼，直接抓人！
-    if (物品.secretLevel == "绝密") {
-        alert.send("严重安全事故", "在一楼大门发现绝密物品：《${物品.name}》！立刻启动园区封锁！")
-        允许放行 = false
+        // 🔥 核心魔法：放行，但同时按下了倒计时秒表！(测试用 10 秒)
+        tracker.expect(物品.tagId, "SPACE_SEC_A", 10, "严重违规！绝密文件【${物品.name}】未在规定时间内抵达保密室！可能已流失！")
     }
-
-    //    if (物品.name == "李四的红头文件") {
-//        alert.send("警报", "检测到：《${物品.name}》！该物品严禁离开存放区！")
-//        允许放行 = false
-//    }
 }
 
 if (允许放行 == false) {
